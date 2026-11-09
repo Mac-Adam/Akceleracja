@@ -2,10 +2,11 @@ import cv2
 import numpy as np
 import os
 
+
 def load_cap(source=None, path=None):
     """
     Load a video capture object from a camera index or an image-sequence pattern.
-    
+
     :param source: Camera index (e.g., 0) 
     :param path: or an OpenCV image-sequence pattern (e.g. ``in%06d.jpg``).
     :return: cv2.VideoCapture object

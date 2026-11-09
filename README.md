@@ -1,3 +1,22 @@
+### Użycie
+
+```sh
+python main.py --path highway
+python main.py --source 0
+python main.py --path highway --opencl-path ./opencl_pipeline.py
+```
+
+Te same ramki BRG wpadają na dwa "Pipeline'y":
+
+- OpenCV reference: 3×3 median -> MOG2 mask.
+- OpenCL: `Pipeline.process(frame)` -> output image.
+
+`--opencl-path` wybiera plik z klasą `Pipeline` implementującą metodę
+`process(frame)`.
+Metoda ta otrzymuję aktualną ramkę i zwraca ramkę wyjściową.
+
+Aktualnie wspierana jest tylko testowa klasa wykonująca medianę.
+
 ### Literatura
 
 - Bazowy artykuł dotyczący MOG - [Adaptive background mixture models for real-time tracking](https://doi.org/10.1109/CVPR.1999.784637)
