@@ -1,19 +1,13 @@
 import cv2
-import numpy as np
 import argparse
+import importlib.util
 import os
 from frame_reader import load_cap
-from opencl_engine import OpenCLEngine
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="OpenCV + OpenCL + MOG")
-    parser.add_argument(
-        "--source",
-        type=int,
-        default=None,
-        help="Camera index (e.g., '0')",
-    )
+    parser.add_argument("--source", type=int, default=None, help="Camera index (e.g., '0')")
     parser.add_argument(
         "--path",
         type=str,
@@ -22,16 +16,16 @@ def parse_args():
         help="Path to an image folder (e.g., './data/frames')",
     )
     parser.add_argument(
-        "--kernel",
+        "--opencl-path",
         type=str,
-        default="median_kernel.cl",
-        help="Path to the OpenCL kernel file",
+        default=os.path.join(os.path.dirname(__file__), "opencl_pipeline.py"),
+        help="Python file defining Pipeline with a process(frame) method",
     )
     parser.add_argument(
         "--fps-limit",
         type=int,
         default=30,
-        help="Delay in ms between frames (useful when reading from a folder)",
+        help="Playback frame rate (useful when reading from a folder)",
     )
     return parser.parse_args()
 
@@ -41,9 +35,7 @@ ESC = ord("\x1b")
 proj_dir = os.path.dirname(os.path.abspath(__file__))
 DATASET_HIGHWAY = os.path.join(proj_dir, "dataset", "highway", "input", "in%06d.jpg")
 DATASET_OFFICE = os.path.join(proj_dir, "dataset", "office", "input", "in%06d.jpg")
-DATASET_PEDESTRIAN = os.path.join(
-    proj_dir, "dataset", "pedestrian", "input", "in%06d.jpg"
-)
+DATASET_PEDESTRIAN = os.path.join(proj_dir, "dataset", "pedestrian", "input", "in%06d.jpg")
 
 
 def main():
@@ -58,11 +50,12 @@ def main():
 
     cap = load_cap(args.source, args.path)
 
-    ocl_engine = OpenCLEngine(args.kernel)
+    spec = importlib.util.spec_from_file_location("opencl_pipeline", args.opencl_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    pipeline = module.Pipeline()
 
-    mog_cv2 = cv2.createBackgroundSubtractorMOG2(
-        history=500, varThreshold=16, detectShadows=False
-    )
+    mog_cv2 = cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=32, detectShadows=False)
 
     wait_time = 1000 // args.fps_limit if args.fps_limit > 0 else 1
     while cap.isOpened():
@@ -71,14 +64,15 @@ def main():
             print("Can't receive frame (stream end). Exiting ...")
             break
 
-        bgra_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
-        filtered_frame = ocl_engine.apply_median_filter(bgra_frame)
+        opencl_output = pipeline.process(frame)
 
-        fg_mask = mog_cv2.apply(filtered_frame)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        reference_frame = cv2.medianBlur(gray, 3)
+        fg_mask = mog_cv2.apply(reference_frame)
 
         cv2.imshow("1. Original Frame", frame)
-        cv2.imshow("2. OpenCL Median (3x3)", filtered_frame)
-        cv2.imshow("3. MOG2 Foreground Mask", fg_mask)
+        cv2.imshow("2. OpenCL Output", opencl_output)
+        cv2.imshow("3. OpenCV MOG2 Reference", fg_mask)
 
         if cv2.waitKey(wait_time) & 0xFF == ESC:
             break
