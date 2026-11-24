@@ -24,8 +24,20 @@ def parse_args():
     parser.add_argument(
         "--kernel",
         type=str,
-        default="median_kernel.cl",
-        help="Path to the OpenCL kernel file",
+        default="gmm_kernel.cl",
+        help="Path to the OpenCL GMM kernel file",
+    )
+    parser.add_argument(
+        "--gmm-k",
+        type=int,
+        default=3,
+        help="Number of Gaussians per pixel",
+    )
+    parser.add_argument(
+        "--gmm-alpha",
+        type=float,
+        default=0.01,
+        help="GMM learning rate in (0, 1)",
     )
     parser.add_argument(
         "--fps-limit",
@@ -58,7 +70,11 @@ def main():
 
     cap = load_cap(args.source, args.path)
 
-    ocl_engine = OpenCLEngine(args.kernel)
+    ocl_engine = OpenCLEngine(
+        args.kernel,
+        num_gaussians=args.gmm_k,
+        alpha=args.gmm_alpha,
+    )
 
     mog_cv2 = cv2.createBackgroundSubtractorMOG2(
         history=500, varThreshold=16, detectShadows=False
@@ -72,13 +88,13 @@ def main():
             break
 
         bgra_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
-        filtered_frame = ocl_engine.apply_median_filter(bgra_frame)
+        gmm_mask = ocl_engine.apply_gmm(bgra_frame)
 
-        fg_mask = mog_cv2.apply(filtered_frame)
+        fg_mask = mog_cv2.apply(frame)
 
         cv2.imshow("1. Original Frame", frame)
-        cv2.imshow("2. OpenCL Median (3x3)", filtered_frame)
-        cv2.imshow("3. MOG2 Foreground Mask", fg_mask)
+        cv2.imshow("2. OpenCL GMM Mask (custom)", gmm_mask)
+        cv2.imshow("3. MOG2 Reference Mask", fg_mask)
 
         if cv2.waitKey(wait_time) & 0xFF == ESC:
             break
