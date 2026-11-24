@@ -1,6 +1,5 @@
 __constant sampler_t gmmSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
 
-// Wytłumacz argumenty kernela
 __kernel void gmm_kernel(
     __read_only image2d_t inputImage,
     __global float *means,
